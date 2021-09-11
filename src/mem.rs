@@ -11,6 +11,27 @@ const STACK_SIZE: usize = 0x10;
 const PROGRAM_MEMORY_START: usize = 0x200;
 const GRAPHICS_WIDTH: usize = 64;
 const GRAPHICS_HEIGHT: usize = 64;
+const DIGITS_MEMORY_START: usize = 0x1AF;
+
+const DIGITS: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+    ];
+
 
 pub struct Mem {
     memory: [u8; MEMORY_SIZE],
@@ -18,24 +39,28 @@ pub struct Mem {
     graphics: [[u8; GRAPHICS_HEIGHT]; GRAPHICS_WIDTH],
     stack_pointer: usize,
 }
-//unsigned char gfx[64 * 32];
+
 impl Mem {
     pub fn new() -> Mem {
-        Mem {
+        let mut mem = Mem {
             memory: [0; MEMORY_SIZE],
             stack: [0; STACK_SIZE],
             graphics: [[0; GRAPHICS_HEIGHT]; GRAPHICS_WIDTH],
             stack_pointer: 0,
-        }
+        };
+
+        mem.memory[DIGITS_MEMORY_START..0x1FF].copy_from_slice(&DIGITS);
+        mem
     }
 
-    pub fn load_program(&mut self, program: &[u8]) {
+    pub fn load_program(&mut self, program: &[u8]) -> Result<(), &'static str> {
         if PROGRAM_MEMORY_START + program.len() > MEMORY_SIZE {
-            panic!("Program is too large to fit in memory");
+            return Err("Program is too large to fit in memory")
         }
 
         self.memory[PROGRAM_MEMORY_START..PROGRAM_MEMORY_START + program.len()]
             .clone_from_slice(&program);
+        Ok(())
     }
 
     pub fn fetch_opcode(&self, index: usize) -> u16 {
@@ -44,6 +69,14 @@ impl Mem {
 
     pub fn fetch(&self, index: usize) -> u8 {
         self.memory[index]
+    }
+
+    pub fn store(&mut self, index: usize, value: u8) {
+        if index < PROGRAM_MEMORY_START {
+            panic!("Segmentation fault");
+        }
+
+        self.memory[index] = value;
     }
 
     pub fn fetch_graphics(&self, x: usize, y: usize) -> u8 {
@@ -67,6 +100,10 @@ impl Mem {
         self.stack_pointer -= 1;
         self.stack[self.stack_pointer + 1]
     }
+
+    pub fn get_address_for_digit(&self, digit: u8) -> u16 {
+        (DIGITS_MEMORY_START + 5*digit as usize) as u16
+    }
 }
 
 impl Default for Mem {
@@ -80,7 +117,7 @@ fn test_load_program() {
     let program: [u8; 4] = [1, 2, 3, 4];
     let mut mem = Mem::new();
 
-    mem.load_program(&program);
+    mem.load_program(&program).unwrap();
     assert_eq!(1, mem.memory[PROGRAM_MEMORY_START]);
     assert_eq!(2, mem.memory[PROGRAM_MEMORY_START + 1]);
     assert_eq!(3, mem.memory[PROGRAM_MEMORY_START + 2]);
@@ -95,4 +132,21 @@ fn test_stack() {
     assert_eq!(1, mem.peek());
     let val = mem.pop();
     assert_eq!(1, val);
+}
+
+#[test]
+fn test_fetch_digit_address() {
+    let mem = Mem::new();
+
+    assert_eq!(DIGITS_MEMORY_START as u16, mem.get_address_for_digit(0));
+
+    assert_eq!((DIGITS_MEMORY_START+5) as u16, mem.get_address_for_digit(1));
+}
+
+#[test]
+fn test_store_and_fetch() {
+    let mut mem = Mem::new();
+
+    mem.store(0x200, 0xFF);
+    assert_eq!(0xFF, mem.fetch(0x200));
 }

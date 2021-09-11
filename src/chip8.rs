@@ -20,3 +20,9 @@ impl Default for Chip8 {
         Self::new()
     }
 }
+
+impl Chip8 {
+    pub fn load_program(&mut self, program: &[u8]) -> Result<(), &'static str> {
+        self.mem.load_program(program)
+    }
+}

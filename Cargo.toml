@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 rand = "0.6.5"
-minifb = "0.16"
+minifb = "0.19.3"
