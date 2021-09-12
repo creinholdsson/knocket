@@ -37,13 +37,19 @@ impl Cpu {
 
     pub fn execute_cycle(&mut self, mem: &mut mem::Mem, keypad: &[bool; 16]) {
         let opcode: u16 = mem.fetch_opcode(self.program_counter as usize);
-
+        log::trace!("opcode: {:04x}", opcode);
         match opcode & 0xF000 {
             0x0000 => {
-                match opcode & 0x000f {
-                    0x000 => println!("clear screen"), // clear screen,
-                    0x00e => println!("return"),       // exit subroutine
-                    x => println!("Unrecognized opcode {}", x),
+                match opcode & 0x000F {
+                    0x000 => {
+                        mem.clear_graphics();
+                        self.increase_program_counter(2);
+                    }, // clear screen,
+                    0x00e => {
+                        self.program_counter = mem.pop();
+                        self.increase_program_counter(2);
+                    },       // exit subroutine
+                    x => log::error!("Unrecognized opcode {}", x),
                 }
             }
 
@@ -58,7 +64,7 @@ impl Cpu {
             }
             0x3000 => {
                 // skip next if reg index by 2nd byte is eq to 3rd and 4th byte
-                let register_value = self.registers[(opcode & 0x0F00) as usize];
+                let register_value = self.registers[(opcode >> 8 & 0xF) as usize];
                 let value = (opcode & 0x00FF) as u8;
 
                 if value == register_value {
@@ -69,7 +75,7 @@ impl Cpu {
             }
             0x4000 => {
                 // skip next if reg index by 2nd byte is neq to 3rd and 4th byte
-                let register_value = self.registers[(opcode & 0x0F00) as usize];
+                let register_value = self.registers[(opcode >> 8 & 0xF) as usize];
                 let value = (opcode & 0x00FF) as u8;
                 if value != register_value {
                     self.increase_program_counter(4);
@@ -99,7 +105,7 @@ impl Cpu {
                 let register_index = (opcode >> 8 & 0x0F) as usize;
                 let register_value = self.registers[register_index];
                 let value = (opcode & 0x00FF) as u8;
-                self.set_register_value(register_index, register_value + value);
+                self.set_register_value(register_index, ((register_value as u32 + value as u32) & 0xFF) as u8);
                 self.increase_program_counter(2);
             }
             0x8000 => {
@@ -167,7 +173,7 @@ impl Cpu {
                         );
                     }
                     x => {
-                        println!("Unknown subcode {}", x);
+                        log::error!("Unknown subcode {}", x);
                     }
                 }
                 self.increase_program_counter(2);
@@ -177,9 +183,9 @@ impl Cpu {
                 let register_index_x = (opcode >> 8 & 0x0F) as usize;
                 let register_index_y = (opcode >> 4 & 0x0F) as usize;
                 if self.registers[register_index_x] == self.registers[register_index_y] {
-                    self.increase_program_counter(4);
-                } else {
                     self.increase_program_counter(2);
+                } else {
+                    self.increase_program_counter(4);
                 }
             }
             0xA000 => {
@@ -196,7 +202,8 @@ impl Cpu {
                 // set vx to rand with AND from byte 3,4
                 let rand = rand::random::<u8>();
                 let register_index_x = (opcode >> 8 & 0x0F) as usize;
-                self.registers[register_index_x] = rand & (opcode & 0x00FF) as u8
+                self.registers[register_index_x] = rand & (opcode & 0x00FF) as u8;
+                self.increase_program_counter(2);
             }
             0xD000 => { 
                 let register_index_x = (opcode >> 8 & 0x0F) as usize;
@@ -239,7 +246,7 @@ impl Cpu {
                         }
                     }
                     x => {
-                        println!("Unrecognized subcode {}", x);
+                        log::error!("Unrecognized subcode {}", x);
                     }
                 }
             }
@@ -307,12 +314,12 @@ impl Cpu {
                         self.increase_program_counter(2);
                     }
                     x => {
-                        println!("Unrecognized subcode {}", x);
+                        log::error!("Unrecognized subcode {}", x);
                     }
                 }
                 
             }
-            x => println!("Unrecognized opcode {}", x),
+            x => log::error!("Unrecognized opcode {}", x),
         }
     }
 }
@@ -680,7 +687,7 @@ fn test_execute_cycle_0x9000_equal() {
     mem.load_program(&[0x91, 0x20]).unwrap();
     cpu.execute_cycle(&mut mem, &keypad);
 
-    assert_eq!(0x204, cpu.program_counter);
+    assert_eq!(0x202, cpu.program_counter);
 }
 
 #[test]
@@ -694,7 +701,21 @@ fn test_execute_cycle_0x9000_not_equal() {
     mem.load_program(&[0x91, 0x20]).unwrap();
     cpu.execute_cycle(&mut mem, &keypad);
 
-    assert_eq!(0x202, cpu.program_counter);
+    assert_eq!(0x204, cpu.program_counter);
+}
+
+#[test]
+fn test_execute_cycle_0xa000() {
+    let mut cpu = Cpu::new();
+    let mut mem = mem::Mem::new();
+    let keypad: [bool; 16] = [false; 16];
+
+    mem.load_program(&[0xAF, 0xFF, 0xA2, 0xFF]).unwrap();
+    cpu.execute_cycle(&mut mem, &keypad);
+
+    assert_eq!(0xFFF, cpu.index);
+    cpu.execute_cycle(&mut mem, &keypad);
+    assert_eq!(0x2FF, cpu.index);
 }
 
 #[test]

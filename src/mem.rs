@@ -36,7 +36,7 @@ const DIGITS: [u8; 80] = [
 pub struct Mem {
     memory: [u8; MEMORY_SIZE],
     stack: [u16; STACK_SIZE],
-    graphics: [[u8; GRAPHICS_HEIGHT]; GRAPHICS_WIDTH],
+    pub graphics: [u32; GRAPHICS_HEIGHT * GRAPHICS_WIDTH],
     stack_pointer: usize,
 }
 
@@ -45,7 +45,7 @@ impl Mem {
         let mut mem = Mem {
             memory: [0; MEMORY_SIZE],
             stack: [0; STACK_SIZE],
-            graphics: [[0; GRAPHICS_HEIGHT]; GRAPHICS_WIDTH],
+            graphics: [0; GRAPHICS_HEIGHT * GRAPHICS_WIDTH],
             stack_pointer: 0,
         };
 
@@ -80,11 +80,17 @@ impl Mem {
     }
 
     pub fn fetch_graphics(&self, x: usize, y: usize) -> u8 {
-        self.graphics[x][y]
+        (self.graphics[x + (y << 6)] & 0xFF) as u8
     }
 
     pub fn store_graphics(&mut self, x: usize, y: usize, val: u8) {
-        self.graphics[x][y] = val;
+        self.graphics[x + (y << 6)] = val as u32 | 0xFF00;
+    }
+
+    pub fn clear_graphics(&mut self) {
+        for n in self.graphics.iter_mut() {
+            *n = 0;
+        }
     }
 
     pub fn push(&mut self, addr: u16) {
@@ -149,4 +155,12 @@ fn test_store_and_fetch() {
 
     mem.store(0x200, 0xFF);
     assert_eq!(0xFF, mem.fetch(0x200));
+}
+
+#[test]
+fn test_fetch_graphics() {
+    let mut mem = Mem::new();
+    mem.graphics[67] = 255;
+
+    assert_eq!(255, mem.fetch_graphics(3, 1));
 }
