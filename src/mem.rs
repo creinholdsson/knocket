@@ -30,8 +30,7 @@ const DIGITS: [u8; 80] = [
     0xE0, 0x90, 0x90, 0x90, 0xE0, // D
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
-    ];
-
+];
 
 pub struct Mem {
     memory: [u8; MEMORY_SIZE],
@@ -55,11 +54,11 @@ impl Mem {
 
     pub fn load_program(&mut self, program: &[u8]) -> Result<(), &'static str> {
         if PROGRAM_MEMORY_START + program.len() > MEMORY_SIZE {
-            return Err("Program is too large to fit in memory")
+            return Err("Program is too large to fit in memory");
         }
 
         self.memory[PROGRAM_MEMORY_START..PROGRAM_MEMORY_START + program.len()]
-            .clone_from_slice(&program);
+            .clone_from_slice(program);
         Ok(())
     }
 
@@ -108,7 +107,7 @@ impl Mem {
     }
 
     pub fn get_address_for_digit(&self, digit: u8) -> u16 {
-        (DIGITS_MEMORY_START + 5*digit as usize) as u16
+        (DIGITS_MEMORY_START + 5 * digit as usize) as u16
     }
 }
 
@@ -146,7 +145,10 @@ fn test_fetch_digit_address() {
 
     assert_eq!(DIGITS_MEMORY_START as u16, mem.get_address_for_digit(0));
 
-    assert_eq!((DIGITS_MEMORY_START+5) as u16, mem.get_address_for_digit(1));
+    assert_eq!(
+        (DIGITS_MEMORY_START + 5) as u16,
+        mem.get_address_for_digit(1)
+    );
 }
 
 #[test]

@@ -8,7 +8,7 @@ pub struct Cpu {
     registers: [u8; REGISTER_COUNT],
     index: u16,
     program_counter: u16,
-    delay_timer: u8
+    delay_timer: u8,
 }
 
 impl Cpu {
@@ -17,7 +17,7 @@ impl Cpu {
             registers: [0; REGISTER_COUNT],
             index: 0,
             program_counter: 0x200,
-            delay_timer: 0
+            delay_timer: 0,
         }
     }
 
@@ -44,11 +44,11 @@ impl Cpu {
                     0x000 => {
                         mem.clear_graphics();
                         self.increase_program_counter(2);
-                    }, // clear screen,
+                    } // clear screen,
                     0x00e => {
                         self.program_counter = mem.pop();
                         self.increase_program_counter(2);
-                    },       // exit subroutine
+                    } // exit subroutine
                     x => log::error!("Unrecognized opcode {}", x),
                 }
             }
@@ -105,7 +105,10 @@ impl Cpu {
                 let register_index = (opcode >> 8 & 0x0F) as usize;
                 let register_value = self.registers[register_index];
                 let value = (opcode & 0x00FF) as u8;
-                self.set_register_value(register_index, ((register_value as u32 + value as u32) & 0xFF) as u8);
+                self.set_register_value(
+                    register_index,
+                    ((register_value as u32 + value as u32) & 0xFF) as u8,
+                );
                 self.increase_program_counter(2);
             }
             0x8000 => {
@@ -205,14 +208,14 @@ impl Cpu {
                 self.registers[register_index_x] = rand & (opcode & 0x00FF) as u8;
                 self.increase_program_counter(2);
             }
-            0xD000 => { 
+            0xD000 => {
                 let register_index_x = (opcode >> 8 & 0x0F) as usize;
                 let register_index_y = (opcode >> 4 & 0x0F) as usize;
                 let x = self.registers[register_index_x];
                 let y = self.registers[register_index_y];
                 let height: u8 = (opcode & 0x0F) as u8;
                 let mut pixel: u8;
-                
+
                 self.registers[15] = 0;
                 for yline in 0..height {
                     pixel = mem.fetch((self.index + yline as u16) as usize);
@@ -224,7 +227,7 @@ impl Cpu {
                             if current_pixel == 1 {
                                 self.registers[0xF] = 1;
                             }
-                            mem.store_graphics(x_coord_index, y_coord_index, current_pixel  ^ 0x01)
+                            mem.store_graphics(x_coord_index, y_coord_index, current_pixel ^ 0x01)
                         }
                     }
                 }
@@ -250,75 +253,64 @@ impl Cpu {
                     }
                 }
             }
-            0xF000 => {
-                match opcode & 0xFF {
-                    0x0007 => {
-                        let register_index = (opcode >> 8 & 0x0F) as usize;
-                        self.set_register_value(register_index, self.delay_timer);
+            0xF000 => match opcode & 0xFF {
+                0x0007 => {
+                    let register_index = (opcode >> 8 & 0x0F) as usize;
+                    self.set_register_value(register_index, self.delay_timer);
+                    self.increase_program_counter(2);
+                }
+                0x000A => {
+                    if let Some(key) = keypad.iter().position(|&x| x) {
+                        let register_index = (opcode >> 8 & 0xF) as usize;
+                        self.set_register_value(register_index, key as u8);
                         self.increase_program_counter(2);
-                    }
-                    0x000A => {
-                        match keypad.iter().position(|&x| x) {
-                            Some(x) => {
-                                let register_index = (opcode >> 8 & 0xF) as usize;
-                                self.set_register_value(register_index, x as u8);
-                                self.increase_program_counter(2);
-                            }
-                            None => {
-                                // no key pressed, no-op
-                            }
-                        }
-                    }
-                    0x0015 => {
-                        let register_index = (opcode >> 8 & 0x0F) as usize;
-                        self.delay_timer = self.registers[register_index];
-                        self.increase_program_counter(2);
-
-                    }
-                    0x0018 => {
-                        
-                    }
-                    0x001E => {
-                        let register_index = (opcode >> 8 & 0x0F) as usize;
-                        self.index += self.registers[register_index] as u16;
-                        self.increase_program_counter(2);
-                    }
-                    0x0029 => {
-                        let register_index = (opcode >> 8 & 0x0F) as usize;
-                        self.index = mem.get_address_for_digit(self.registers[register_index]);
-                        self.increase_program_counter(2);
-                    }
-                    0x0033 => {
-                        let register_index = (opcode >> 8 & 0x0F) as usize;
-                        let register_value = self.registers[register_index];
-                        mem.store(self.index as usize,(register_value / 100) % 10);
-                        mem.store(self.index as usize + 1, (register_value / 10) % 10);
-                        mem.store(self.index as usize + 2, register_value % 10);
-                        self.increase_program_counter(2);
-                    }
-                    0x0055 => {
-                        let register_index = opcode >> 8 & 0x0F;
-                        for (index, addr) in (self.index .. self.index+register_index+1).enumerate() {
-                            mem.store(addr as usize, self.registers[index])
-                        }
-
-                        self.index += register_index + 1;
-                        self.increase_program_counter(2);
-                    }
-                    0x0065 => {
-                        let register_index = opcode >> 8 & 0x0F;
-                        for index in 0 .. register_index+1 {
-                            self.registers[index as usize] = mem.fetch((self.index + index) as usize)
-                        }
-                        self.index += register_index + 1;
-                        self.increase_program_counter(2);
-                    }
-                    x => {
-                        log::error!("Unrecognized subcode {}", x);
                     }
                 }
-                
-            }
+                0x0015 => {
+                    let register_index = (opcode >> 8 & 0x0F) as usize;
+                    self.delay_timer = self.registers[register_index];
+                    self.increase_program_counter(2);
+                }
+                0x0018 => {}
+                0x001E => {
+                    let register_index = (opcode >> 8 & 0x0F) as usize;
+                    self.index += self.registers[register_index] as u16;
+                    self.increase_program_counter(2);
+                }
+                0x0029 => {
+                    let register_index = (opcode >> 8 & 0x0F) as usize;
+                    self.index = mem.get_address_for_digit(self.registers[register_index]);
+                    self.increase_program_counter(2);
+                }
+                0x0033 => {
+                    let register_index = (opcode >> 8 & 0x0F) as usize;
+                    let register_value = self.registers[register_index];
+                    mem.store(self.index as usize, (register_value / 100) % 10);
+                    mem.store(self.index as usize + 1, (register_value / 10) % 10);
+                    mem.store(self.index as usize + 2, register_value % 10);
+                    self.increase_program_counter(2);
+                }
+                0x0055 => {
+                    let register_index = opcode >> 8 & 0x0F;
+                    for (index, addr) in (self.index..self.index + register_index + 1).enumerate() {
+                        mem.store(addr as usize, self.registers[index])
+                    }
+
+                    self.index += register_index + 1;
+                    self.increase_program_counter(2);
+                }
+                0x0065 => {
+                    let register_index = opcode >> 8 & 0x0F;
+                    for index in 0..register_index + 1 {
+                        self.registers[index as usize] = mem.fetch((self.index + index) as usize)
+                    }
+                    self.index += register_index + 1;
+                    self.increase_program_counter(2);
+                }
+                x => {
+                    log::error!("Unrecognized subcode {}", x);
+                }
+            },
             x => log::error!("Unrecognized opcode {}", x),
         }
     }
@@ -766,7 +758,7 @@ fn test_execute_cycle_0xe000_not_pressed() {
     let mut cpu = Cpu::new();
     let mut mem = mem::Mem::new();
     let mut keypad: [bool; 16] = [true; 16];
-    
+
     keypad[0xE] = false;
 
     cpu.set_register_value(0xE, 0xE);
@@ -782,7 +774,6 @@ fn test_execute_cycle_0xfx07_set_delay() {
     let mut cpu = Cpu::new();
     let mut mem = mem::Mem::new();
     let keypad: [bool; 16] = [true; 16];
-
 
     cpu.delay_timer = 0xFF;
     mem.load_program(&[0xF2, 0x07]).unwrap();
@@ -841,7 +832,7 @@ fn test_execute_cycle_0xfx1e() {
 
     cpu.execute_cycle(&mut mem, &keypad);
 
-    assert_eq!(0xFF+0xFF, cpu.index);
+    assert_eq!(0xFF + 0xFF, cpu.index);
 }
 
 #[test]
@@ -910,7 +901,6 @@ fn test_execute_cycle_0xfx65() {
     let mut cpu = Cpu::new();
     let mut mem = mem::Mem::new();
     let keypad: [bool; 16] = [true; 16];
-
 
     mem.store(0x300, 0);
     mem.store(0x301, 1);
